@@ -37,7 +37,7 @@ class CVRPTW:
         
         self.distances: np.ndarray | None = None # Distance matrix
         
-        self.n = 0 # Number of customers
+        self.n_customers = 0 # Number of customers
         
         self.load() # Load the data from the file
     
@@ -60,7 +60,7 @@ class CVRPTW:
                 if len(values) == 7:
                     self.customers.append(Customer(*map(int, values)))
             
-        self.n = len(self.customers)
+        self.n_customers = len(self.customers)
             
     def load_distances(self):
         ''' Load a distance matrix from customers data '''
