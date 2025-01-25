@@ -11,21 +11,16 @@ class Solver:
     def solve(self):
         ''' Solve the problem '''
         
-        self.clarke_wright_heuristic()
+        self.clarke_wright()
 
-    def clarke_wright_heuristic(self):
-        ''' Clarke-Wright heuristic '''
+    def clarke_wright(self):
+        ''' Clarke-Wright savings heuristic '''
         
         vehicle_capacity = self.cvrptw.vehicle_capacity
+        
         distances = self.cvrptw.distances
         customers = self.cvrptw.customers
         n_customers = self.cvrptw.n_customers
-        
-        savings: list[tuple[int, int, int]] = []
-        for i in range(1, n_customers):
-            for j in range(i + 1, n_customers):
-                savings.append((distances[i, 0] + distances[j, 0] - distances[i, j], i, j))
-        savings.sort(key=lambda x: x[0], reverse=True)
         
         routes: list[list[int]] = []
         route_demands: list[int] = []
