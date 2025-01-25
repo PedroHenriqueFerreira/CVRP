@@ -100,6 +100,11 @@ class CVRPTW:
         time += self.distances[0, route[-1]]
             
         return time <= self.customers[0].due_date
+            
+    def all_constraints(self, route: list[int]):
+        ''' Check all constraints for a route '''
+        
+        return self.capacity_constraint(route) and self.time_constraint(route)
                 
     def load_routes(self):
         ''' Load the routes using the Clarke-Wright savings heuristic '''
@@ -149,7 +154,7 @@ class CVRPTW:
                 
             combined_route = routes[route_i] + routes[route_j]
             
-            if not self.capacity_constraint(combined_route) or not self.time_constraint(combined_route):
+            if not self.all_constraints(combined_route):
                 continue
         
             routes[route_i] = combined_route
@@ -157,38 +162,37 @@ class CVRPTW:
             
         # Reduce the number of routes
         
-        # while len(routes) > self.vehicle_number:
-        #     min_route = min(routes, key=len)
-        #     routes.remove(min_route)
-            
-        #     for k in min_route:
-        #         reduced = False
-                
-        #         for r in routes:
-        #             combined_route_1 = r + [k]
-        #             combined_route_2 = [k] + r
-                    
-        #             if self.capacity_constraint(combined_route_1) and self.time_constraint(combined_route_1):
-        #                 routes.append(combined_route_1)
-        #                 reduced = True
-        #                 break
-                    
-        #             if self.capacity_constraint(combined_route_2) and self.time_constraint(combined_route_2):
-        #                 routes.append(combined_route_2)
-        #                 reduced = True
-        #                 break
-                
-        #         if not reduced:
-        #             print('INFEASIBLE')
+        print('ALL', len(set(sum(routes, []))))
+        print('N ROUTES', len(routes))
+        print('VEHICLES', self.vehicle_number)
         
-        #
+        while len(routes) > self.vehicle_number:
+            min_route = min(routes, key=len)
+            routes.remove(min_route)
             
-        for route in routes:
-            print(route)
+            for customer in min_route:
+                inserted = False
+                for route in routes:
+                    for i in range(len(route) + 1):
+                        combined_route = route[:i] + [customer] + route[i:]
+                        
+                        if not self.all_constraints(combined_route):
+                            continue
+                        
+                        inserted = True
+                        
+                        routes[routes.index(route)] = combined_route
+                        
+                        break
+                    
+                    if inserted:
+                        break
             
         print('ALL', len(set(sum(routes, []))))
-        print('ROUTES', len(routes))
+        print('N ROUTES', len(routes))
         print('VEHICLES', self.vehicle_number)
+        
+        print('ROUTES', routes) 
         
     def load(self):
         ''' Load the data from the file '''
