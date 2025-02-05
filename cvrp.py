@@ -30,7 +30,6 @@ class CVRP:
         self.customers: list[Customer] = [] # Customers data
         
         self.distances: np.ndarray[np.int32] = np.array([]) # Distance matrix
-        
         self.routes: list[list[int]] = [] # Routes list
         
         self.load() # Load the data from the file
@@ -86,17 +85,32 @@ class CVRP:
                 delta_y = self.customers[i].y - self.customers[j].y
                 
                 self.distances[i][j] = self.distances[j][i] = round(np.linalg.norm((delta_x, delta_y)))
+        
+    def calculate_capacity(self, route: list[int]):
+        ''' Calculate the capacity for a route '''
+        
+        return sum(self.customers[c - 1].demand for c in route)
               
+    def calculate_length(self, route: list[int]):
+        ''' Calculate the length for a route '''
+        
+        length = self.distances[0, route[0]]
+        for i in range(len(route) - 1):
+            length += self.distances[route[i], route[i + 1]]
+        length += self.distances[route[-1], 0]
+        
+        return length
+    
     def capacity_constraint(self, route: list[int]):
         ''' Check the capacity constraint for a route '''
         
-        return sum(self.customers[c - 1].demand for c in route) <= self.vehicle_capacity
+        return self.calculate_capacity(route) <= self.vehicle_capacity
                
-    def load_routes(self):
+    def clarke_wright(self):
         ''' Load the routes using the Clarke-Wright savings heuristic '''
-        
+
         # Calculate the savings
-        
+
         savings: list[tuple[int, int, int]] = []
         
         for i in range(1, len(self.customers)):
@@ -166,8 +180,40 @@ class CVRP:
                 
                 if not breaked:
                     raise Exception('Cannot add the customer to any route')
-
+        
         self.routes = routes
+    
+    def two_opt(self):
+        total_cost_cw = 0
+        total_cost_cw_2_opt = 0
+        
+        for idx, route in enumerate(self.routes):
+            best_route = route
+            best_route_length = self.calculate_length(route)
+            
+            total_cost_cw += best_route_length
+
+            improve = True
+            while improve:
+                improve = False
+                for i in range(len(route) - 1):
+                    for j in range(i + 1, len(route)):
+                        new_route = route[:i+1] + route[i+1:j+1][::-1] + route[j+1:]
+                        new_route_length = self.calculate_length(new_route)
+
+                        if new_route_length < best_route_length:
+                            best_route = new_route
+                            best_route_length = new_route_length
+                            
+                            improve = True        
+                route = best_route
+            
+            self.routes[idx] = route
+        
+            total_cost_cw_2_opt += best_route_length
+        
+        print('Total cost Clarke-Wright:', total_cost_cw)
+        print('Total cost Clarke-Wright + 2-opt:', total_cost_cw_2_opt)
         
     def load(self):
         ''' Load the data from the file '''
@@ -175,7 +221,8 @@ class CVRP:
         try:
             self.load_instance()
             self.load_distances()  
-            self.load_routes()
+            self.clarke_wright()
+            self.two_opt()
             
         except Exception:
             print('Error loading the instance file')
