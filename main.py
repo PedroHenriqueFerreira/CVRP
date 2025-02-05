@@ -1,10 +1,10 @@
 from sys import argv
 
-from cvrptw import CVRPTW
+from cvrp import CVRP
 
 if __name__ == '__main__':
-    if len(argv) < 2:
-        print('Usage: python main.py <instance>')
+    if len(argv) < 3:
+        print('Usage: python main.py <instance> <vehicle_number>')
         exit(1)
     
-    CVRPTW(argv[1])
+    CVRP(argv[1], int(argv[2]))
