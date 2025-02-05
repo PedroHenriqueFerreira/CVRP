@@ -30,6 +30,7 @@ class CVRP:
         self.customers: list[Customer] = [] # Customers data
         
         self.distances: np.ndarray[np.int32] = np.array([]) # Distance matrix
+        
         self.routes: list[list[int]] = [] # Routes list
         
         self.load() # Load the data from the file
@@ -89,7 +90,7 @@ class CVRP:
     def capacity_constraint(self, route: list[int]):
         ''' Check the capacity constraint for a route '''
         
-        return sum(self.customers[c].demand for c in route) <= self.vehicle_capacity
+        return sum(self.customers[c - 1].demand for c in route) <= self.vehicle_capacity
                
     def load_routes(self):
         ''' Load the routes using the Clarke-Wright savings heuristic '''
@@ -146,15 +147,27 @@ class CVRP:
             routes.pop(route_j)
             
         # Reduce the number of routes
-        # while len(routes) > self.vehicle_number:
-        #     min_route = min(routes, key=len)
-        #     routes.remove(min_route)
-        #     for customer in min_route:
-        #         insertion_route = min(routes, key=lambda r: sum(self.distances[c - 1][0] for c in r))
-        #         insertion_route.insert(-1, customer)
+        while len(routes) > self.vehicle_number:
+            min_route = min(routes, key=len)
+            routes.remove(min_route)
+            
+            for customer in min_route:
+                sorted_routes = sorted(routes, key=lambda r: sum(self.distances[c - 1][0] for c in r))
+                
+                breaked = False
+                
+                for route in sorted_routes:
+                    if not self.capacity_constraint(route + [customer]):
+                        continue
+                
+                    route.append(customer)
+                    breaked = True
+                    break
+                
+                if not breaked:
+                    raise Exception('Cannot add the customer to any route')
 
-        for route in routes:
-            print(route, sum(self.customers[c - 1].demand for c in route), self.vehicle_capacity)
+        self.routes = routes
         
     def load(self):
         ''' Load the data from the file '''
