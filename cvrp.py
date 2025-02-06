@@ -63,16 +63,13 @@ class CVRP:
                 
                 match section:
                     case 'NODE_COORD_SECTION':
-                        i, x, y = map(int, values)
-                        self.customers.append(Customer(i, x, y))
+                        self.customers.append(Customer(*map(int, values)))
                         
                     case 'DEMAND_SECTION':
-                        i, demand = map(int, values)
-                        self.customers[i - 1].demand = demand 
+                        self.customers[int(values[0]) - 1].demand = int(values[1])
 
                     case 'DEPOT_SECTION':
-                        i = int(values[0])
-                        self.customers[i - 1].depot = True
+                        self.customers[int(values[0]) - 1].depot = True
             
     def load_distances(self):
         ''' Load a distance matrix from customers data '''
@@ -84,7 +81,7 @@ class CVRP:
                 delta_x = self.customers[i].x - self.customers[j].x
                 delta_y = self.customers[i].y - self.customers[j].y
                 
-                self.distances[i][j] = self.distances[j][i] = round(np.linalg.norm((delta_x, delta_y)))
+                self.distances[i, j] = self.distances[j, i] = round(np.linalg.norm((delta_x, delta_y)))
         
     def calculate_capacity(self, route: list[int]):
         ''' Calculate the capacity for a route '''
@@ -94,10 +91,10 @@ class CVRP:
     def calculate_length(self, route: list[int]):
         ''' Calculate the length for a route '''
         
-        length = self.distances[0, route[0]]
+        length = self.distances[0, route[0] - 1]
         for i in range(len(route) - 1):
-            length += self.distances[route[i], route[i + 1]]
-        length += self.distances[route[-1], 0]
+            length += self.distances[route[i] - 1, route[i + 1] - 1]
+        length += self.distances[route[-1] - 1, 0]
         
         return length
     
@@ -166,7 +163,7 @@ class CVRP:
             routes.remove(min_route)
             
             for customer in min_route:
-                sorted_routes = sorted(routes, key=lambda r: sum(self.distances[c - 1][0] for c in r))
+                sorted_routes = sorted(routes, key=lambda r: sum(self.distances[c - 1, 0] for c in r))
                 
                 breaked = False
                 
@@ -184,6 +181,8 @@ class CVRP:
         self.routes = routes
     
     def two_opt(self):
+        print(self.routes)
+        
         total_cost_cw = 0
         total_cost_cw_2_opt = 0
         
@@ -214,6 +213,8 @@ class CVRP:
         
         print('Total cost Clarke-Wright:', total_cost_cw)
         print('Total cost Clarke-Wright + 2-opt:', total_cost_cw_2_opt)
+        
+        print(self.routes)
         
     def load(self):
         ''' Load the data from the file '''
