@@ -2,20 +2,6 @@ from traceback import print_exc
 
 import numpy as np
 
-class Customer:
-    ''' Class for the customers data '''
-    
-    def __init__(self, i: int, x: int, y: int):
-        ''' Initialize the customer data '''
-        
-        self.i = i # Customer number
-        self.x = x # X coordinate
-        self.y = y # Y coordinate
-        
-        self.demand = 0 # Demand
-        
-        self.depot = False # Depot flag
-
 class CVRP:
     ''' Class for the Capacitated Vehicle Routing Problem ''' 
     
@@ -25,12 +11,16 @@ class CVRP:
         self.instance_file = instance_file # Instance file name
         self.vehicle_number = vehicle_number # Number of vehicles
         
-        self.vehicle_capacity = 0 # Each vehicle capacity
+        self.dimension = 0 # Number of customers
+        self.capacity = 0 # Each vehicle capacity
+        self.edge_weight_type = '' # Edge weight type
+        self.edge_weight_format = '' # Edge weight format
+        self.distances: np.ndarray = None # Distance matrix
+        self.positions: list[tuple[int, int]] = [] # Positions list
+        self.demands: list[int] = [] # Demands list
+        self.depot = 0 # Depot node
         
-        self.customers: list[Customer] = [] # Customers data
-        
-        self.distances: np.ndarray[np.int32] = np.array([]) # Distance matrix
-        self.routes: list[list[int]] = [] # Routes list
+        self.routes: list[list[int]] = None # Routes list
         
         self.load() # Load the data from the file
     
@@ -38,71 +28,94 @@ class CVRP:
         ''' Load an instance from the file '''
         
         with open(self.instance_file, 'r') as file:
+            i, j = 1, 0
             section = ''
             
-            for line in file.readlines():
+            for l in file.readlines():
+                line = l.strip()
+                
+                if not line:
+                    continue
+                
+                if ':' in line:
+                    field, value = line.split(':', 1)
+                    field, value = field.strip(), value.strip()
+                    
+                    match field:
+                        case 'TYPE':
+                            if value != 'CVRP':
+                                raise Exception('Only CVRP instances are supported')
+                            
+                        case 'DIMENSION':
+                            self.dimension = int(value)
+                            self.distances = np.zeros((self.dimension, self.dimension), dtype=int)
+                            
+                        case 'CAPACITY':
+                            self.capacity = int(value)
+                            
+                        case 'EDGE_WEIGHT_TYPE':
+                            if value not in ('EUC_2D', 'ATT', 'EXPLICIT'):
+                                raise Exception('Only (EUC_2D, ATT, EXPLICIT) edge weight types are supported')
+                            
+                            self.edge_weight_type = value
+                            
+                        case 'EDGE_WEIGHT_FORMAT':
+                            if value != 'LOWER_COL':
+                                raise Exception('Only LOWER_COL edge weight format is supported')
+                        
+                            self.edge_weight_format = value
+                    
+                if line.isupper():
+                    section = line
+                    continue
+                
                 values = line.split()
                 
-                if not values:
-                    continue
-                
-                match values[0]:
-                    case 'CAPACITY':
-                        self.vehicle_capacity = int(values[-1])
-                        continue
-                    
-                    case 'EDGE_WEIGHT_TYPE':
-                        if values[-1] == 'EUC_2D':
-                            continue
+                match section:            
+                    case 'EDGE_WEIGHT_SECTION':
+                        for value in values:
+                            self.distances[i, j] = self.distances[j, i] = int(value)
+                            
+                            i += 1
+                            if i == self.dimension:
+                                i, j = j + 2, j + 1
                         
-                        raise Exception('Only EUC_2D edge weight type is supported')
-                
-                if not values[0].isdigit():
-                    section = values[0]
-                    continue
-                
-                match section:
                     case 'NODE_COORD_SECTION':
-                        self.customers.append(Customer(*map(int, values)))
+                        x, y = float(values[1]), float(values[2])
+                        self.positions.append((x, y))
                         
                     case 'DEMAND_SECTION':
-                        self.customers[int(values[0]) - 1].demand = int(values[1])
+                        demand = int(values[1])
+                        self.demands.append(demand)
 
                     case 'DEPOT_SECTION':
-                        self.customers[int(values[0]) - 1].depot = True
+                        depot = int(values[0])
+                        
+                        if depot <= 0:
+                            continue
+                        
+                        if self.depot > 0:
+                            raise Exception('Only one depot is supported')
+                        
+                        self.depot = depot
             
-    def load_distances(self):
-        ''' Load a distance matrix from customers data '''
+            if len(self.positions) != 0:
+                for i in range(self.dimension):
+                    for j in range(self.dimension):
+                        sdx = (self.positions[i][0] - self.positions[j][0]) ** 2
+                        sdy = (self.positions[i][1] - self.positions[j][1]) ** 2
+                        
+                        distance = 0
+                        
+                        match self.edge_weight_type:
+                            case 'EUC_2D':
+                                distance: float = round(np.sqrt(sdx + sdy))
+                            
+                            case 'ATT':
+                                distance: float = round(np.sqrt((sdx + sdy) / 10))
+                        
+                        self.distances[i, j] = self.distances[j, i] = distance
         
-        self.distances = np.zeros((len(self.customers), len(self.customers)), dtype=int)
-        
-        for i in range(len(self.customers)):
-            for j in range(i + 1, len(self.customers)):
-                delta_x = self.customers[i].x - self.customers[j].x
-                delta_y = self.customers[i].y - self.customers[j].y
-                
-                self.distances[i, j] = self.distances[j, i] = round(np.linalg.norm((delta_x, delta_y)))
-        
-    def calculate_capacity(self, route: list[int]):
-        ''' Calculate the capacity for a route '''
-        
-        return sum(self.customers[c - 1].demand for c in route)
-              
-    def calculate_length(self, route: list[int]):
-        ''' Calculate the length for a route '''
-        
-        length = self.distances[0, route[0] - 1]
-        for i in range(len(route) - 1):
-            length += self.distances[route[i] - 1, route[i + 1] - 1]
-        length += self.distances[route[-1] - 1, 0]
-        
-        return length
-    
-    def capacity_constraint(self, route: list[int]):
-        ''' Check the capacity constraint for a route '''
-        
-        return self.calculate_capacity(route) <= self.vehicle_capacity
-               
     def clarke_wright(self):
         ''' Load the routes using the Clarke-Wright savings heuristic '''
 
@@ -110,8 +123,8 @@ class CVRP:
 
         savings: list[tuple[int, int, int]] = []
         
-        for i in range(1, len(self.customers)):
-            for j in range(i + 1, len(self.customers)):
+        for i in range(1, self.dimension):
+            for j in range(i + 1, self.dimension):
                 s = self.distances[i, 0] + self.distances[j, 0] - self.distances[i, j]
                 savings.append((s, i, j))
                 
@@ -119,8 +132,9 @@ class CVRP:
         
         # Initialize the routes
         
-        routes = [[c.i] for c in self.customers[1:]]
-        
+        self.routes = [[i] for i in range(1, self.dimension)]
+        route_demands = self.demands[1:]
+    
         # Combine the routes
         
         for s, i, j in savings:
@@ -128,7 +142,7 @@ class CVRP:
                 continue
             
             route_i = route_j = None
-            for k, route in enumerate(routes):
+            for k, route in enumerate(self.routes):
                 if i in route:
                     route_i = k
                 if j in route:
@@ -137,67 +151,74 @@ class CVRP:
             if not route_i or not route_j or route_i == route_j:
                 continue
             
-            if routes[route_i][0] != i and routes[route_i][-1] != i:
+            if self.routes[route_i][0] == i:
+                self.routes[route_i].reverse()
+                
+            if self.routes[route_j][-1] == j:
+                self.routes[route_j].reverse()
+            
+            if self.routes[route_i][-1] != i or self.routes[route_j][0] != j:
                 continue
                 
-            if routes[route_j][0] != j and routes[route_j][-1] != j:
-                continue
-            
-            if routes[route_i][0] == i:
-                routes[route_i].reverse()
-                
-            if routes[route_j][-1] == j:
-                routes[route_j].reverse()
-                
-            combined_route = routes[route_i] + routes[route_j]
-            
-            if not self.capacity_constraint(combined_route):
+            if route_demands[route_i] + route_demands[route_j] > self.capacity:
                 continue
         
-            routes[route_i] = combined_route
-            routes.pop(route_j)
+            route_demands[route_i] += route_demands[route_j]
+            route_demands.pop(route_j)
+            
+            self.routes[route_i] += self.routes[route_j]
+            self.routes.pop(route_j)
             
         # Reduce the number of routes
-        while len(routes) > self.vehicle_number:
-            min_route = min(routes, key=len)
-            routes.remove(min_route)
+        
+        while len(self.routes) > self.vehicle_number:
+            min_route = min(self.routes, key=len)
+            
+            idx = self.routes.index(min_route)
+            
+            route_demands.pop(idx)
+            self.routes.pop(idx)
             
             for customer in min_route:
-                sorted_routes = sorted(routes, key=lambda r: sum(self.distances[c - 1, 0] for c in r))
                 
-                breaked = False
+                customer_added = False
                 
-                for route in sorted_routes:
-                    if not self.capacity_constraint(route + [customer]):
+                for route in sorted(self.routes, key=lambda r: sum(self.distances[c, 0] for c in r)):
+                    idx = self.routes.index(route)
+                    
+                    if route_demands[idx] + self.demands[customer] > self.capacity:
                         continue
-                
-                    route.append(customer)
-                    breaked = True
+                    
+                    route_demands[idx] += self.demands[customer]
+                    route += [customer]
+                    
+                    customer_added = True
+                    
                     break
                 
-                if not breaked:
+                if not customer_added:
                     raise Exception('Cannot add the customer to any route')
+    
+    def calculate_length(self, route: list[int]):
+        ''' Calculate the length for a route '''
         
-        self.routes = routes
+        length = self.distances[0, route[0]] + self.distances[0, route[-1]]
+        for i in range(len(route) - 1):
+            length += self.distances[route[i], route[i + 1]]
+        
+        return length
     
     def two_opt(self):
-        print(self.routes)
-        
-        total_cost_cw = 0
-        total_cost_cw_2_opt = 0
-        
         for idx, route in enumerate(self.routes):
             best_route = route
             best_route_length = self.calculate_length(route)
             
-            total_cost_cw += best_route_length
-
             improve = True
             while improve:
                 improve = False
                 for i in range(len(route) - 1):
                     for j in range(i + 1, len(route)):
-                        new_route = route[:i+1] + route[i+1:j+1][::-1] + route[j+1:]
+                        new_route = route[:i] + route[i:j + 1][::-1] + route[j + 1:]
                         new_route_length = self.calculate_length(new_route)
 
                         if new_route_length < best_route_length:
@@ -205,25 +226,25 @@ class CVRP:
                             best_route_length = new_route_length
                             
                             improve = True        
+                
                 route = best_route
             
             self.routes[idx] = route
-        
-            total_cost_cw_2_opt += best_route_length
-        
-        print('Total cost Clarke-Wright:', total_cost_cw)
-        print('Total cost Clarke-Wright + 2-opt:', total_cost_cw_2_opt)
-        
-        print(self.routes)
         
     def load(self):
         ''' Load the data from the file '''
         
         try:
             self.load_instance()
-            self.load_distances()  
             self.clarke_wright()
+            
+            print('BEFORE', sum(self.calculate_length(route) for route in self.routes))
+            print('ROUTES', self.routes)
+            
             self.two_opt()
+            
+            print('AFTER', sum(self.calculate_length(route) for route in self.routes))
+            print('ROUTES', self.routes)
             
         except Exception:
             print('Error loading the instance file')
