@@ -339,6 +339,7 @@ class KNeighbors:
         self.routes = routes # Routes list
         
         self.mst: Graph = None # Minimum spanning tree
+        self.matrices: list[np.ndarray] = []
         
     def load_mst(self):
         ''' Load the minimum spanning tree '''  
@@ -375,11 +376,46 @@ class KNeighbors:
         
         neighbors = self.nearest_neighbors_mst(customer)
         
+        if len(neighbors) < self.cvrp.neighbor_number:
+            for neighbor in self.nearest_neighbors_mat(customer):
+                if neighbor not in neighbors:
+                    neighbors.append(neighbor)
+                    
+                if len(neighbors) == self.cvrp.neighbor_number:
+                    break
         
+        if len(neighbors) < self.cvrp.neighbor_number:
+            raise Exception('Cannot find all neighbors')
         
+        return neighbors
+    
+    def load_matrices(self):
+        ''' Load distance matrices based on nearest neighbors '''
+        
+        for route in self.routes:
+            matrix = np.full((self.cvrp.dimension, self.cvrp.dimension), -1, dtype=int)
+            
+            for i in range(self.cvrp.dimension):
+                matrix[i, i] = 0
+            
+            matrix[0, route[0]] = matrix[route[0], 0] = self.cvrp.distances[0, route[0]]    
+            for r in range(len(route) - 1):
+                matrix[route[r], route[r + 1]] = self.cvrp.distances[route[r], route[r + 1]]
+                matrix[route[r + 1], route[r]] = self.cvrp.distances[route[r + 1], route[r]]
+            matrix[route[-1], 0] = matrix[0, route[-1]] = self.cvrp.distances[route[-1], 0]
+                
+            for customer in route:
+                for neighbor in self.nearest_neighbors(customer):
+                    matrix[customer, neighbor] = self.cvrp.distances[customer, neighbor]
+                    matrix[neighbor, customer] = self.cvrp.distances[neighbor, customer]
+            
+            self.matrices.append(matrix)
+    
     def run(self):
         ''' Run the k-nearest neighbors heuristic '''
         
         self.load_mst()
+        self.load_matrices()
         
+        return self.matrices
         
