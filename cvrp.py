@@ -536,6 +536,18 @@ class Solver:
     def run(self):
         ''' Run the solver '''
         
-        cities_propositions  = [self.get(f"c_{i}_{j}_{v1}") for i in range(number_of_cities) for j in range(number_of_cities) for v1 in range(number_of_vehicles)]
-        weights_propositions = [self.get(f"w_{i}_{j}_{v1}") for i in range(number_of_cities) for j in range(number_of_cities) if i != j for v1 in range(number_of_vehicles)]
-        vehicle_proposition = [self.get(f"t_{i}_{k}" for i in range(number_of_cities) for k in range(number_of_vehicles))]
+        t: list[int] = []
+        c: list[int] = []
+        w: list[int] = []
+        
+        for k in range(self.cvrp.vehicle_number):   
+            for i in range(self.cvrp.dimension):
+                t.append(self.get(f't_{i}_{k}'))
+                
+                for j in range(self.cvrp.dimension):
+                    c.append(self.get(f'c_{i}_{j}_{k}'))
+                    
+                    if i != j:
+                        w.append(self.get(f'w_{i}_{j}_{k}'))
+        
+        
