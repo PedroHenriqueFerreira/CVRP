@@ -1,12 +1,12 @@
 import numpy as np
+
+from os import system
 from networkx import minimum_spanning_tree, Graph
 
-class CVRP:
+class Instance:
     ''' Class for the Capacitated Vehicle Routing Problem ''' 
     
     def __init__(self, instance_file: str, vehicle_number: int, neighbor_number: int):
-        ''' Initialize the CVRPTW instance with the file name '''
-        
         self.instance_file = instance_file # Instance file name
         self.vehicle_number = vehicle_number # Number of vehicles
         self.neighbor_number = neighbor_number # Number of neighbors
@@ -137,7 +137,7 @@ class CVRP:
 class Route:
     ''' Class for the route '''
     
-    def __init__(self, cvrp: CVRP, route: list[int]):
+    def __init__(self, cvrp: Instance, route: list[int]):
         self.cvrp = cvrp # CVRP instance
         self.route = route # Route list
         
@@ -199,7 +199,7 @@ class Route:
 class ClarkeWright:
     ''' Class for the Clarke-Wright savings heuristic '''
     
-    def __init__(self, cvrp: CVRP):
+    def __init__(self, cvrp: Instance):
         self.cvrp = cvrp # CVRP instance
         
         self.savings: list[tuple[int, int, int]] = []
@@ -334,8 +334,8 @@ class TwoOpt:
 class KNeighbors:
     ''' Class for the k-nearest neighbors heuristic '''
     
-    def __init__(self, routes: list[Route]):
-        self.cvrp = routes[0].cvrp # CVRP instance
+    def __init__(self, cvrp: Instance, routes: list[Route]):
+        self.cvrp = cvrp # CVRP instance
         self.routes = routes # Routes list
         
         self.mst: Graph = None # Minimum spanning tree
@@ -419,20 +419,23 @@ class KNeighbors:
         
         return self.matrices
 
-class Mapper:
-    ''' Class for the propositional logic mapper '''
+class Solver:
+    ''' Class for the solver '''
     
-    def __init__(self):
+    def __init__(self, cvrp: Instance, matrices: list[np.ndarray]):
+        self.cvrp = cvrp # CVRP instance
+        self.matrices = matrices # Matrices list
+        
         self.counter = 1
         
-        self.mapping: dict[str, int] = {}
-        self.mapping_inv: dict[int, str] = {}
+        self.mapping: dict[str, int] = {} # Mapping variable to literal
+        self.mapping_inv: dict[int, str] = {} # Mapping literal to variable
         
-        self.model: list[str] = []
-        self.model_optimizer: list[str] = []
+        self.constraints: list[str] = [] # Constraints list
+        self.objectives: list[str] = [] # Objectives list
 
-    def add(self, variable: str):
-        ''' Add a new variable to the mapping '''
+    def get(self, variable: str):
+        ''' Get the variable from the mapping '''
         
         if variable not in self.mapping:
             self.mapping[variable] = self.counter
@@ -442,54 +445,97 @@ class Mapper:
             
         return self.mapping[variable]
 
-    def transform_literal(self, literal: int, value: int = 1):
-        ''' Transform the literal '''
+    def encode_literal(self, literal: int, value: int):
+        ''' Encode the literal '''
         
-        prefix = 'x' if literal >= 0 else '~x'
+        return f'{value} {["~", ""][literal >= 0]}x{abs(literal)} '
+
+    def encode_clause(self, clause: list[int], value: int = None):
+        ''' Encode the clause '''
         
-        return f'{value} {prefix}{abs(literal)} '
+        return ''.join(self.encode_literal(literal, value) for literal in clause)
 
-    def transform_optimizers(self, optimizers: list[tuple[int, int]]):
-        ''' Transform the optimizers '''
+    def add_constraint(self, clause: list[int], operator: str, value: int):
+        ''' Add a clause with an operator '''
         
-        output = ''
-        for literal, value in optimizers:
-            output += self.transform_literal(literal, value)  
-        return output
+        self.constraints.append(self.encode_clause(clause) + f'{operator} {value} ;')
 
-    def transform_clauses(self, clause: list[int], value: int = None):
-        ''' Transform the clauses '''
+    def add_constraint_eq(self, clause: list[int], value: int):
+        ''' Add a clause with the equality operator '''
         
-        output = ''
-        for literal in clause:
-            output += self.transform_literal(literal, value)   
-        return output
-
-    def transform_optimizer(self, literal: int, value: int):
-        ''' Transform the optimizer '''
+        self.add_constraint(clause, '=', value)
         
-        self.model_optimizer.append((literal, value))
-
-    def create_min_function_with_optimizer(self):
-        optimizers = [(x[0], x[1]) for x in self.model_optimizer]
-        return self.transform_optimizers(optimizers)
-
-    def transform_clauses_inequality(self, clause: list[int], operator: str, value: int = 1):
-        self.model.append(self.transform_clauses(clause) + f'{operator} {value} ;')
-
-    def transform_clauses_geq(self, clause: list[int], value: int):
-        self.transform_clauses_inequality(clause, '>=', value)
-
-    def transform_clauses_leq(self, clause: list[int], value: int):
-        self.transform_clauses_inequality(clause, '<=', value)
-
-    def transform_clauses_equal(self, clause: list[int], value: int):
-        self.transform_clauses_inequality(clause, '=', value)
-
-    def generate_model(self):
-        model_string = f"* #variable= {self.counter-1} #constraint= {len(self.model)}\n"
-        model_string += f"min: {self.create_min_function_with_optimizer()} ; \n"
+    def add_constraint_leq(self, clause: list[int], value: int):
+        ''' Add a clause with the less than or equal operator '''
         
-        for line in self.model:
-            model_string += line + "\n" 
-        return model_string
+        self.add_constraint(clause, '<=', value)
+        
+    def add_constraint_geq(self, clause: list[int], value: int):
+        ''' Add a clause with the greater than or equal operator '''
+        
+        self.add_constraint(clause, '>=', value)
+
+    def add_objective(self, literal: int, value: int):
+        self.objectives.append(self.encode_literal(literal, value))
+
+    def create_objective_string(self):
+        ''' Create the objective '''
+        
+        return ' '.join(self.objectives)
+
+    def create_constraint_string(self):
+        ''' Create the constraints '''
+        
+        return '\n'.join(self.constraints)
+
+    def encode(self):
+        ''' Encode the model '''
+        
+        string = f'* #variable= {self.counter - 1} #constraint= {len(self.constraints)}\n'
+        string += f'min: {self.create_objective_string()} ; \n'
+        string += self.create_constraint_string()
+        
+        return string
+    
+    def decode(self, output: list[str]):
+        ''' Decode the model '''
+
+        cost: int = None
+        val: list[int] = []
+        
+        for line in output:
+            if line.startswith('s UNSATISFIABLE'):
+                break
+            
+            match line[0]:
+                case 'o':
+                    cost = line[2:]
+                
+                case 'v':
+                    val += [int(v) for v in line[2:].replace('x', '').replace('c', '').split()]        
+        
+        return cost, val
+
+    def solve(self):
+        ''' Solve the model '''
+        
+        try:
+            with open('input.txt', 'w+') as input_file:
+                input_file.write(self.encode())
+                
+            system('./naps input.txt > output.txt')
+                
+            with open('output.txt', 'r') as output_file:
+                output = output_file.readlines()    
+            
+            return self.decode(output)
+        
+        except:    
+            return None, []
+        
+    def run(self):
+        ''' Run the solver '''
+        
+        cities_propositions  = [self.get(f"c_{i}_{j}_{v1}") for i in range(number_of_cities) for j in range(number_of_cities) for v1 in range(number_of_vehicles)]
+        weights_propositions = [self.get(f"w_{i}_{j}_{v1}") for i in range(number_of_cities) for j in range(number_of_cities) if i != j for v1 in range(number_of_vehicles)]
+        vehicle_proposition = [self.get(f"t_{i}_{k}" for i in range(number_of_cities) for k in range(number_of_vehicles))]
