@@ -418,4 +418,78 @@ class KNeighbors:
         self.load_matrices()
         
         return self.matrices
+
+class Mapper:
+    ''' Class for the propositional logic mapper '''
+    
+    def __init__(self):
+        self.counter = 1
         
+        self.mapping: dict[str, int] = {}
+        self.mapping_inv: dict[int, str] = {}
+        
+        self.model: list[str] = []
+        self.model_optimizer: list[str] = []
+
+    def add(self, variable: str):
+        ''' Add a new variable to the mapping '''
+        
+        if variable not in self.mapping:
+            self.mapping[variable] = self.counter
+            self.mapping_inv[self.counter] = variable
+            
+            self.counter += 1
+            
+        return self.mapping[variable]
+
+    def transform_literal(self, literal: int, value: int = 1):
+        ''' Transform the literal '''
+        
+        prefix = 'x' if literal >= 0 else '~x'
+        
+        return f'{value} {prefix}{abs(literal)} '
+
+    def transform_optimizers(self, optimizers: list[tuple[int, int]]):
+        ''' Transform the optimizers '''
+        
+        output = ''
+        for literal, value in optimizers:
+            output += self.transform_literal(literal, value)  
+        return output
+
+    def transform_clauses(self, clause: list[int], value: int = None):
+        ''' Transform the clauses '''
+        
+        output = ''
+        for literal in clause:
+            output += self.transform_literal(literal, value)   
+        return output
+
+    def transform_optimizer(self, literal: int, value: int):
+        ''' Transform the optimizer '''
+        
+        self.model_optimizer.append((literal, value))
+
+    def create_min_function_with_optimizer(self):
+        optimizers = [(x[0], x[1]) for x in self.model_optimizer]
+        return self.transform_optimizers(optimizers)
+
+    def transform_clauses_inequality(self, clause: list[int], operator: str, value: int = 1):
+        self.model.append(self.transform_clauses(clause) + f'{operator} {value} ;')
+
+    def transform_clauses_geq(self, clause: list[int], value: int):
+        self.transform_clauses_inequality(clause, '>=', value)
+
+    def transform_clauses_leq(self, clause: list[int], value: int):
+        self.transform_clauses_inequality(clause, '<=', value)
+
+    def transform_clauses_equal(self, clause: list[int], value: int):
+        self.transform_clauses_inequality(clause, '=', value)
+
+    def generate_model(self):
+        model_string = f"* #variable= {self.counter-1} #constraint= {len(self.model)}\n"
+        model_string += f"min: {self.create_min_function_with_optimizer()} ; \n"
+        
+        for line in self.model:
+            model_string += line + "\n" 
+        return model_string

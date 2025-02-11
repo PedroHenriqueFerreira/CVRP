@@ -1,6 +1,6 @@
 from sys import argv
 
-from cvrp import CVRP, ClarkeWright, TwoOpt
+from cvrp import CVRP, ClarkeWright, TwoOpt, KNeighbors
 
 if __name__ == '__main__':
     if len(argv) < 4:
@@ -17,4 +17,5 @@ if __name__ == '__main__':
     
     print('2OPT:', sum(route.cost() for route in routes))
     
+    matrices = KNeighbors(routes).run()
     
