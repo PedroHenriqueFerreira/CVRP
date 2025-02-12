@@ -540,6 +540,7 @@ class Solver:
         c: list[int] = []
         w: list[int] = []
         
+        # Create the variables
         for k in range(self.cvrp.vehicle_number):   
             for i in range(self.cvrp.dimension):
                 t.append(self.get(f't_{i}_{k}'))
@@ -550,4 +551,33 @@ class Solver:
                     if i != j:
                         w.append(self.get(f'w_{i}_{j}_{k}'))
         
+        # Only one vehicle leaves the depot
+        for k in range(self.cvrp.vehicle_number):
+            w_0_j_k = [self.get(f"w_0_{j}_{k}") for j in range(self.cvrp.dimension) if j != 0]
+            self.add_constraint_eq(w_0_j_k, 1)
+            
+        # Only one vehicle enters the depot
+        for k in range(self.cvrp.vehicle_number):
+            w_i_0_k = [self.get(f"w_{i}_0_{k}") for i in range(self.cvrp.dimension) if i != 0]
+            
+            self.add_constraint_eq(w_i_0_k, 1)
+            
+        # A customer leaves only to one customer and by one vehicle
+        for i in range(1, self.cvrp.dimension):
+            w_i_j_k: list[int] = []
+            
+            for k in range(self.cvrp.vehicle_number):
+                w_i_j_k += [self.get(f"w_{i}_{j}_{k}") for j in range(self.cvrp.dimension) if i != j]
+            
+            self.add_constraint_eq(w_i_j_k, 1)
+        
+        # A customer enters only by one customer and by one vehicle
+        for j in range(1, self.cvrp.dimension):
+            w_i_j_k: list[int] = []
+            
+            for k in range(self.cvrp.vehicle_number):
+                w_i_j_k += [self.get(f"w_{i}_{j}_{k}") for i in range(self.cvrp.dimension) if i != j]
+            
+            self.add_constraint_eq(w_i_j_k, 1)
+            
         
