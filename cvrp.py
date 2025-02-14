@@ -433,6 +433,8 @@ class Solver:
         
         self.constraints: list[str] = [] # Constraints list
         self.objectives: list[str] = [] # Objectives list
+        
+        self.routes: list[list[int]] = []
 
     def get(self, variable: str):
         ''' Get the variable from the mapping '''
@@ -553,13 +555,14 @@ class Solver:
         
         # Only one vehicle leaves the depot
         for k in range(self.cvrp.vehicle_number):
-            w_0_j_k = [self.get(f"w_0_{j}_{k}") for j in range(self.cvrp.dimension) if j != 0]
+            w_0_j_k = [self.get(f'w_0_{j}_{k}') for j in range(self.cvrp.dimension) if j != 0]
+            
             self.add_constraint_eq(w_0_j_k, 1)
             
         # Only one vehicle enters the depot
         for k in range(self.cvrp.vehicle_number):
-            w_i_0_k = [self.get(f"w_{i}_0_{k}") for i in range(self.cvrp.dimension) if i != 0]
-            
+            w_i_0_k = [self.get(f'w_{i}_0_{k}') for i in range(self.cvrp.dimension) if i != 0]
+
             self.add_constraint_eq(w_i_0_k, 1)
             
         # A customer leaves only to one customer and by one vehicle
@@ -567,7 +570,7 @@ class Solver:
             w_i_j_k: list[int] = []
             
             for k in range(self.cvrp.vehicle_number):
-                w_i_j_k += [self.get(f"w_{i}_{j}_{k}") for j in range(self.cvrp.dimension) if i != j]
+                w_i_j_k += [self.get(f'w_{i}_{j}_{k}') for j in range(self.cvrp.dimension) if i != j]
             
             self.add_constraint_eq(w_i_j_k, 1)
         
@@ -576,8 +579,123 @@ class Solver:
             w_i_j_k: list[int] = []
             
             for k in range(self.cvrp.vehicle_number):
-                w_i_j_k += [self.get(f"w_{i}_{j}_{k}") for i in range(self.cvrp.dimension) if i != j]
+                w_i_j_k += [self.get(f'w_{i}_{j}_{k}') for i in range(self.cvrp.dimension) if i != j]
             
             self.add_constraint_eq(w_i_j_k, 1)
             
+        # A vehicle cannot enter and leave the same customer
+        for i in range(self.cvrp.dimension):
+            for j in range(i + 1, self.cvrp.dimension):
+                for k in range(self.cvrp.vehicle_number):
+                    w_i_j_k = self.get(f'w_{i}_{j}_{k}')
+                    w_j_i_k = self.get(f'w_{j}_{i}_{k}')
+                    
+                    self.add_constraint_geq([-w_i_j_k, -w_j_i_k], 1)
+                    
+        # If a vehicle leaves a customer and visits another one then both customers was visited
+        for i in range(1, self.cvrp.dimension):
+            for j in range(1, self.cvrp.dimension):
+                for k in range(self.cvrp.vehicle_number):
+                    if i == j:
+                        continue
+                    
+                    w_i_j_k = self.get(f'w_{i}_{j}_{k}')
+                    t_i_k = self.get(f't_{i}_{k}')
+                    t_j_k = self.get(f't_{j}_{k}')
+                    
+                    self.add_constraint_geq([-w_i_j_k, t_i_k], 1)
+                    self.add_constraint_geq([-w_i_j_k, t_j_k], 1)
         
+        # A customer is only visited by one vehicle
+        for i in range(1, self.cvrp.dimension):
+            for k in range(self.cvrp.vehicle_number):
+                for l in range(self.cvrp.vehicle_number):
+                    if k == l:
+                        continue
+                    
+                    t_i_k = self.get(f't_{i}_{k}')
+                    t_i_l = self.get(f't_{i}_{l}')
+                    
+                    self.add_constraint_geq([-t_i_k, -t_i_l], 1)
+                    
+        # A vehicle visits a customer after leaving the depot
+        for j in range(1, self.cvrp.dimension):
+            for k in range(self.cvrp.vehicle_number):
+                w_0_j_k = self.get(f'w_{0}_{j}_{k}')
+                t_j_k = self.get(f't_{j}_{k}')
+                
+                self.add_constraint_geq([-w_0_j_k, t_j_k], 1)
+        
+        # A vehicle visits a customer before enters the depot
+        for i in range(1, self.cvrp.dimension):
+            for k in range(self.cvrp.vehicle_number):
+                w_i_0_k = self.get(f'w_{i}_{0}_{k}')
+                t_i_k = self.get(f't_{i}_{k}')
+                
+                self.add_constraint_geq([-w_i_0_k, t_i_k], 1)
+
+        # Base path
+        for i in range(self.cvrp.dimension):
+            for j in range(self.cvrp.dimension):
+                if i == j:
+                    continue
+                
+                for k in range(self.cvrp.vehicle_number):
+                    w_i_j_k = self.get(f'w_{i}_{j}_{k}')
+                    c_i_j_k = self.get(f'c_{i}_{j}_{k}')
+                    
+                    self.add_constraint_geq([-w_i_j_k, c_i_j_k], 1)
+
+        # Induction path
+        for i in range(1, self.cvrp.dimension):
+            for j in range(1, self.cvrp.dimension):
+                if i == j:
+                    continue
+                    
+                for k in range(1, self.cvrp.dimension):
+                    for l in range(self.cvrp.vehicle_number):
+                        w_i_j_l = self.get(f'w_{i}_{j}_{l}')
+                        c_j_k_l = self.get(f'c_{j}_{k}_{l}')
+                        c_i_k_l = self.get(f'c_{i}_{k}_{l}')
+                        
+                        self.add_constraint_geq([-w_i_j_l, -c_j_k_l, c_i_k_l], 1)
+        
+        # There is no path from a customer to the same customer
+        for i in range(1, self.cvrp.dimension):
+            c_i_i_v = [self.get(f'c_{i}_{i}_{k}') for k in range(self.cvrp.vehicle_number)]
+            
+            self.add_constraint_eq(c_i_i_v, 0)
+        
+        # Set the weights
+        for k in range(self.cvrp.vehicle_number):
+            for i in range(self.cvrp.dimension):  
+                for j in range(self.cvrp.dimension):
+                    if i == j:
+                        continue
+                        
+                    w_i_j_k = self.get(f'w_{i}_{j}_{k}')
+                    
+                    self.add_objective(w_i_j_k, self.cvrp.distances[i, j])
+        
+        # Set false the removed neighbors
+        for k in range(self.cvrp.vehicle_number):
+            for i in range(self.cvrp.dimension):
+                for j in range(self.cvrp.dimension):
+                    if self.matrices[k][i, j] != 0 and self.matrices[k][i, j] != -1:
+                        continue
+                    
+                    w_i_j_k = self.get(f'w_{i}_{j}_{k}')
+                    
+                    self.add_constraint_eq([w_i_j_k], 0)
+                    
+        cost, model = self.solve()
+        
+        route: list[int] = []
+        
+        for item in model:
+            if item not in w:
+                continue
+            
+            route.append(self.mapping_inv[item])
+            
+        return route

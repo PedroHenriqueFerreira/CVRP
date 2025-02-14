@@ -13,5 +13,6 @@ if __name__ == '__main__':
     routes = TwoOpt(routes).run()
     
     matrices = KNeighbors(cvrp, routes).run()
-    
     routes = Solver(cvrp, matrices).run()
+    
+    print(routes)
