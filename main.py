@@ -5,6 +5,7 @@ from classes import Instance, ClarkeWright, TwoOpt, KNeighbors, Solver
 if __name__ == '__main__':
     if len(argv) < 4:
         print('Usage: python main.py <instance> <vehicle_number> <neighbor_number>')
+        print('Example: python main.py instances/eil22.vrp 4 5')
         exit(1)
     
     cvrp = Instance(argv[1], int(argv[2]), int(argv[3])).load()
