@@ -95,7 +95,7 @@ class Solver:
 
         for line in output:
             if line.startswith('s UNSATISFIABLE'):
-                break
+                raise Exception('The model is unsatisfiable')
             
             if line[0] != 'v':
                 continue
@@ -109,7 +109,7 @@ class Solver:
             with open('input.txt', 'w+') as input_file:
                 input_file.write(self.encode())
                 
-            system('./naps input.txt > output.txt')
+            system('./solvers/clasp input.txt > output.txt')
                 
             with open('output.txt', 'r') as output_file:
                 output = output_file.readlines()    
@@ -276,10 +276,13 @@ class Solver:
                     self.add_constraint_eq(None, [w_i_j_k], 0)
             
         # Capacity constraint
+        
+        demands_negative = [-d for d in self.cvrp.demands]
+        
         for k in range(self.cvrp.vehicle_number):
             t_i_k = [self.get(f't_{i}_{k}') for i in range(self.cvrp.dimension)]
             
-            self.add_constraint_leq(self.cvrp.demands, t_i_k, self.cvrp.capacity)
+            self.add_constraint_geq(demands_negative, t_i_k, -self.cvrp.capacity)
                     
         self.solve()
         
