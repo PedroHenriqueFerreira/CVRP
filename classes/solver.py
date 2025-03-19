@@ -117,8 +117,8 @@ class Solver:
             
             self.decode(output)
         
-            # remove('input.txt')
-            # remove('output.txt')
+            remove('input.txt')
+            remove('output.txt')
         
         except:    
             raise Exception('Cannot solve the model')

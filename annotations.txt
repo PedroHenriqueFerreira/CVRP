@@ -1,5 +1,5 @@
-Solvers imcompletos 
-Any time sat solver
+Solvers Incompletos 
+Any Time Sat Solver
 
 https://github.com/RJPenic/CVRPTW/tree/main
 
