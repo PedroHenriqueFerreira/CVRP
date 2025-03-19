@@ -3,12 +3,12 @@ from sys import argv
 from classes import Instance, ClarkeWright, TwoOpt, KNeighbors, Solver
 
 if __name__ == '__main__':
-    if len(argv) < 4:
-        print('Usage: python main.py <instance> <vehicle_number> <neighbor_number>')
-        print('Example: python main.py instances/eil22.vrp 4 5')
+    if len(argv) < 5:
+        print('Usage: python main.py <instance> <vehicle_number> <neighbor_number> <solver_name>')
+        print('Example: python main.py instances/eil22.vrp 4 5 nasp')
         exit(1)
     
-    cvrp = Instance(argv[1], int(argv[2]), int(argv[3])).load()
+    cvrp = Instance(argv[1], int(argv[2]), int(argv[3]), argv[4]).load()
     
     cw_time, routes = ClarkeWright(cvrp).run()
     to_time, routes = TwoOpt(routes).run()

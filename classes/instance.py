@@ -3,10 +3,11 @@ import numpy as np
 class Instance:
     ''' Class for the Capacitated Vehicle Routing Problem ''' 
     
-    def __init__(self, instance_file: str, vehicle_number: int, neighbor_number: int):
+    def __init__(self, instance_file: str, vehicle_number: int, neighbor_number: int, solver_name: str):
         self.instance_file = instance_file # Instance file name
         self.vehicle_number = vehicle_number # Number of vehicles
         self.neighbor_number = neighbor_number # Number of neighbors
+        self.solver_name = solver_name # Name of solver
         
         self.dimension = 0 # Number of customers
         self.capacity = 0 # Each vehicle capacity

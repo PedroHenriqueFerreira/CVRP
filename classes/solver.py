@@ -1,4 +1,5 @@
 from os import system, remove
+from os.path import sep
 
 import numpy as np
 
@@ -109,15 +110,15 @@ class Solver:
             with open('input.txt', 'w+') as input_file:
                 input_file.write(self.encode())
                 
-            system('./solvers/clasp input.txt > output.txt')
-                
+            system(f'.{sep}solvers{sep}{self.cvrp.solver_name} input.txt > output.txt')
+            
             with open('output.txt', 'r') as output_file:
                 output = output_file.readlines()    
             
             self.decode(output)
         
-            remove('input.txt')
-            remove('output.txt')
+            # remove('input.txt')
+            # remove('output.txt')
         
         except:    
             raise Exception('Cannot solve the model')
