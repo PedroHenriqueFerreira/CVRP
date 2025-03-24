@@ -24,7 +24,7 @@ class Instance:
         
         # Auxiliary variables
         self.section = '' # Section name
-        self.i, self.j = 1, 0 # Indexes
+        self.i, self.j = 0, 0 # Indexes
     
     def load_field(self, line: str):
         ''' Load a field from the line '''
@@ -52,10 +52,16 @@ class Instance:
                 self.edge_weight_type = value
                 
             case 'EDGE_WEIGHT_FORMAT':
-                if value != 'LOWER_COL':
-                    raise Exception('Only LOWER_COL edge weight format is supported')
-            
+                if value != 'LOWER_COL' and value != 'LOWER_ROW':
+                    raise Exception('Only LOWER_COL and LOWER_ROW edge weight formats are supported')
+
                 self.edge_weight_format = value
+                
+        match self.edge_weight_format:
+            case 'LOWER_ROW':
+                self.i, self.j = 0, 1 # Indexes
+            case 'LOWER_COL':
+                self.i, self.j = 1, 0 # Indexes
     
     def load_section(self, line: str):
         ''' Load a section from the line '''
@@ -67,9 +73,20 @@ class Instance:
                 for value in values:
                     self.distances[self.i, self.j] = self.distances[self.j, self.i] = int(value)
                     
-                    self.i += 1
-                    if self.i == self.dimension:
-                        self.i, self.j = self.j + 2, self.j + 1
+                    match self.edge_weight_format:
+                        case 'LOWER_ROW':
+                           self.i += 1
+                           
+                           if self.i == self.j:
+                                self.i = 0
+                                self.j += 1
+                            
+                        case 'LOWER_COL':
+                            self.i += 1
+                            
+                            if self.i == self.dimension:
+                                self.j += 1 
+                                self.i = self.j + 1
                 
             case 'NODE_COORD_SECTION':
                 x, y = float(values[1]), float(values[2])
@@ -87,7 +104,7 @@ class Instance:
                         raise Exception('Only one depot is supported')
                     
                     self.depot = depot
-    
+        
     def load_distances(self):
         ''' Load the distances for the CVRP instance '''
         
@@ -129,5 +146,5 @@ class Instance:
             
             if len(self.positions) != 0:
                 self.load_distances()
-        
+            
         return self
