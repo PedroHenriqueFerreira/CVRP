@@ -27,11 +27,10 @@ if __name__ == '__main__':
     
     print('AFTER SOLVER \n')
     
-    solver_time, routes = Solver(cvrp, matrices).run()
+    solver_time, solver_cost, solver_result = Solver(cvrp, matrices).run()
     
-    print('ROUTES', [route.route for route in routes])
-    print('DEMAND', [route.demand() for route in routes])
-    print('COST', sum([route.cost() for route in routes]))
+    print('RESULT', solver_result)
+    print('OPTIMUM', solver_cost)
     
     print('-' * 80)
     

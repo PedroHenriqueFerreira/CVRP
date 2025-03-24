@@ -22,7 +22,9 @@ class Solver:
         self.constraints: list[str] = [] # Constraints list
         self.objectives: list[str] = [] # Objectives list
         
-        self.model: list[int] = [] # Model list
+        self.result: list[int] = [] # Result list
+        self.optimum: float = 0 # Optimum value
+        
         self.routes: list[str] = [] # Routes list
 
     def get(self, variable: str):
@@ -94,15 +96,30 @@ class Solver:
     def decode(self, output: list[str]):
         ''' Decode the model '''
 
+        model = []
+
         for line in output:
             if line.startswith('s UNSATISFIABLE'):
                 raise Exception('The model is unsatisfiable')
             
-            if line[0] != 'v':
+            if line.startswith('o'): 
+                self.optimum = float(line[2:])
+            
+            if line.startswith('v'):
+                model += [int(v) for v in line[2:].replace('x', '').replace('c', '').split()] 
+                       
+                       
+        for item in model:
+            if item not in self.mapping_inv:
                 continue
             
-            self.model += [int(v) for v in line[2:].replace('x', '').replace('c', '').split()]        
-
+            var = self.mapping_inv[item]
+            
+            if not var.startswith('w_'):
+                continue
+            
+            self.result.append(var)
+    
     def solve(self):
         ''' Solve the model '''
         
@@ -141,13 +158,13 @@ class Solver:
                     if i != j:
                         w.append(self.get(f'w_{i}_{j}_{k}'))
         
-        # Only one vehicle leaves the depot
+        # Each vehicle leaves the depot by one customer
         for k in range(self.cvrp.vehicle_number):
             w_0_j_k = [self.get(f'w_0_{j}_{k}') for j in range(self.cvrp.dimension) if j != 0]
             
             self.add_constraint_eq(None, w_0_j_k, 1)
             
-        # Only one vehicle enters the depot
+        # Each vehicle enters the depot by one customer
         for k in range(self.cvrp.vehicle_number):
             w_i_0_k = [self.get(f'w_{i}_0_{k}') for i in range(self.cvrp.dimension) if i != 0]
 
@@ -249,10 +266,18 @@ class Solver:
                         self.add_constraint_geq(None, [-w_i_j_l, -c_j_k_l, c_i_k_l], 1)
         
         # There is no path from a customer to the same customer
-        for i in range(1, self.cvrp.dimension):
+        for i in range(self.cvrp.dimension):
             c_i_i_v = [self.get(f'c_{i}_{i}_{k}') for k in range(self.cvrp.vehicle_number)]
             
             self.add_constraint_eq(None, c_i_i_v, 0)
+        
+        # Capacity constraint
+        demands_negative = [-d for d in self.cvrp.demands]
+        
+        for k in range(self.cvrp.vehicle_number):
+            t_i_k = [self.get(f't_{i}_{k}') for i in range(self.cvrp.dimension)]
+            
+            self.add_constraint_geq(demands_negative, t_i_k, -self.cvrp.capacity)
         
         # Set the weights
         for k in range(self.cvrp.vehicle_number):
@@ -275,18 +300,10 @@ class Solver:
                     w_i_j_k = self.get(f'w_{i}_{j}_{k}')
                     
                     self.add_constraint_eq(None, [w_i_j_k], 0)
-            
-        # Capacity constraint
-        
-        demands_negative = [-d for d in self.cvrp.demands]
-        
-        for k in range(self.cvrp.vehicle_number):
-            t_i_k = [self.get(f't_{i}_{k}') for i in range(self.cvrp.dimension)]
-            
-            self.add_constraint_geq(demands_negative, t_i_k, -self.cvrp.capacity)
                     
         self.solve()
         
+    # ONLY FOR VISUALIZATION
     def load_routes(self):
         ''' Load the routes ''' 
         
@@ -335,6 +352,5 @@ class Solver:
         ''' Run the solver '''
         
         self.load_model()
-        self.load_routes()
         
-        return self.routes
+        return self.optimum, self.result

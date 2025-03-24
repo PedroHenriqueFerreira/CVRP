@@ -6,6 +6,11 @@ def timer(func):
         result = func(*args, **kwargs)
         end = time()
         
-        return end - start, result
+        interval = end - start
+        
+        if isinstance(result, tuple):
+            return interval, *result
+        
+        return interval, result
     
     return wrapper
