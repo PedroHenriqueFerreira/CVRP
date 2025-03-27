@@ -9,6 +9,9 @@ class Route:
         self.cvrp = cvrp # CVRP instance
         self.route = route # Route list
         
+        self._cost: int = -1 # Route cost
+        self._demand: int = -1 # Route demand
+        
     def __iter__(self):
         ''' Iterate over the route '''
         
@@ -29,25 +32,49 @@ class Route:
         
         return len(self.route)
     
-    def reverse(self, i = None, j = None):
-        ''' Reverse the route '''
+    def __add__(self, other: Union[list[int], 'Route']):
+        ''' Add a customer to the route '''
+        
+        if isinstance(other, Route):
+            other = other.route
+        
+        return Route(self.cvrp, self.route + other)
+        
+    def __radd__(self, other: Union[list[int], 'Route']):
+        ''' Add a customer to the route '''
+        
+        if isinstance(other, Route):
+            other = other.route
+        
+        return Route(self.cvrp, other + self.route)
+    
+    def reversed(self, i = None, j = None):
+        ''' Returns a reversed route on the given indexes '''
         
         route = self.route[:]
-        
         route[i:j] = route[i:j][::-1]
         
         return Route(self.cvrp, route)
-        
-    @staticmethod
-    def merge(self: Union[list[int], 'Route'], other: Union[list[int], 'Route']):
-        ''' Merge two routes '''
-        
-        self_route = self.route if isinstance(self, Route) else self
-        other_route = other.route if isinstance(other, Route) else other
-        
-        return Route(self.cvrp, self_route + other_route)
-        
+    
+    @property
     def cost(self):
+        ''' Get the route cost '''
+        
+        if self._cost < 0:
+            self._cost = self.calculate_cost()
+        
+        return self._cost
+    
+    @property
+    def demand(self):
+        ''' Get the route demand '''
+        
+        if self._demand < 0:
+            self._demand = self.calculate_demand()
+        
+        return self._demand
+        
+    def calculate_cost(self):
         ''' Calculate the cost for the route '''
         
         cost = self.cvrp.distances[0, self.route[0]]
@@ -57,7 +84,7 @@ class Route:
         
         return cost
     
-    def demand(self):
+    def calculate_demand(self):
         ''' Calculate the demand for the route '''
         
         return sum(self.cvrp.demands[c] for c in self.route)

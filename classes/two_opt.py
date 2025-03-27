@@ -12,7 +12,7 @@ class TwoOpt:
         
         for idx, route in enumerate(self.routes):
             best_route = route
-            best_route_cost = route.cost()
+            best_route_cost = route.cost
             
             improve = True
             while improve:
@@ -21,7 +21,7 @@ class TwoOpt:
                     for j in range(i + 1, len(route)):
                         new_route = route.reverse(i, j + 1)
                         
-                        new_route_cost = new_route.cost()
+                        new_route_cost = new_route.cost
 
                         if new_route_cost < best_route_cost:
                             best_route = new_route

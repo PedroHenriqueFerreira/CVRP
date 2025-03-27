@@ -336,12 +336,12 @@ class Solver:
                 
                 for path in paths[:]:
                     if path[0] == route[-1]:
-                        route = Route.merge(route, path[1:])
+                        route = route + path[1:]
                         
                         paths.remove(path)
                     
                     elif path[-1] == route[0]:
-                        route = Route.merge(path[:-1], route)
+                        route = path[:-1] + route
                         
                         route.remove(path)
             

@@ -5,8 +5,9 @@ from classes.utils import timer
 class ClarkeWright:
     ''' Class for the Clarke-Wright savings heuristic '''
     
-    def __init__(self, cvrp: Instance):
+    def __init__(self, cvrp: Instance, vehicle_number: int):
         self.cvrp = cvrp # CVRP instance
+        self.vehicle_number = vehicle_number # Number of vehicles
         
         self.savings: list[tuple[int, int, int]] = []
         self.routes: list[Route] = []
@@ -25,8 +26,8 @@ class ClarkeWright:
     def load_routes(self):
         ''' Load initial routes '''
         
-        for c in range(1, self.cvrp.dimension):
-            self.routes.append(Route(self.cvrp, [c]))
+        for customer in range(1, self.cvrp.dimension):
+            self.routes.append(Route(self.cvrp, [customer]))
 
     def combine_routes(self):
         ''' Combine the routes '''
@@ -46,17 +47,17 @@ class ClarkeWright:
                 continue
             
             if self.routes[route_i][0] == i:
-                self.routes[route_i] = self.routes[route_i].reverse()
+                self.routes[route_i] = self.routes[route_i].reversed()
                 
             if self.routes[route_j][-1] == j:
-                self.routes[route_j] = self.routes[route_j].reverse()
+                self.routes[route_j] = self.routes[route_j].reversed()
             
             if self.routes[route_i][-1] != i or self.routes[route_j][0] != j:
                 continue
                 
-            new_route = Route.merge(self.routes[route_i], self.routes[route_j])
+            new_route = self.routes[route_i] + self.routes[route_j]
                 
-            if new_route.demand() > self.cvrp.capacity:
+            if new_route.demand > self.cvrp.capacity:
                 continue
                 
             self.routes[route_i] = new_route
@@ -65,28 +66,27 @@ class ClarkeWright:
     def reduce_routes(self):
         ''' Reduce the number of routes '''
         
-        while len(self.routes) > self.cvrp.vehicle_number:
+        while len(self.routes) > self.vehicle_number:
             min_route = min(self.routes, key=len)
             self.routes.remove(min_route)
             
             for customer in min_route:
                 customer_added = False
                 
-                for route in sorted(self.routes, key=lambda r: sum(self.cvrp.distances[c, 0] for c in r)):
-                    new_route = Route.merge(route, [customer])
+                for i, route in enumerate(self.routes):
+                    new_route = route + [customer]
                     
-                    if new_route.demand() > self.cvrp.capacity:
+                    if new_route.demand > self.cvrp.capacity:
                         continue
                     
-                    self.routes[self.routes.index(route)] = new_route
-                    
+                    self.routes[i] = new_route
                     customer_added = True
                     
                     break
                 
                 if not customer_added:
                     raise Exception('Cannot add the customer to any route')
-        
+                
     @timer
     def run(self):
         ''' Run the Clarke-Wright savings heuristic '''

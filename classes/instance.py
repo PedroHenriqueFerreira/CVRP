@@ -3,34 +3,32 @@ import numpy as np
 class Instance:
     ''' Class for the Capacitated Vehicle Routing Problem ''' 
     
-    def __init__(self, instance_file: str, vehicle_number: int, neighbor_number: int, solver_name: str):
-        self.instance_file = instance_file # Instance file name
-        self.vehicle_number = vehicle_number # Number of vehicles
-        self.neighbor_number = neighbor_number # Number of neighbors
-        self.solver_name = solver_name # Name of solver
+    def __init__(self, instance_file: str):
+        self._instance_file = instance_file # Instance file name
         
         self.dimension = 0 # Number of customers
-        self.capacity = 0 # Each vehicle capacity
-        
         self.edge_weight_type = '' # Edge weight type
         self.edge_weight_format = '' # Edge weight format
+        self.capacity = 0 # Each vehicle capacity
+        
+        self.node_coords: list[tuple[float, float]] = [] # Nodes coordinates
+        self.demands: list[int] = [] # Demands list
+        
+        self.depot: int = -1 # Depot node
         
         self.distances: np.ndarray = None # Distance matrix
         
-        self.positions: list[tuple[int, int]] = [] # Positions list
-        self.demands: list[int] = [] # Demands list
-        
-        self.depot = 0 # Depot node
-        
         # Auxiliary variables
-        self.section = '' # Section name
-        self.i, self.j = 0, 0 # Indexes
+        
+        self._round = True # Round distances
+        
+        self._section = '' # Section name
+        self._i, self._j = 0, 0 # Matrix indexes
     
     def load_field(self, line: str):
         ''' Load a field from the line '''
         
-        field, value = line.split(':', 1)
-        field, value = field.strip(), value.strip()
+        field, value = map(lambda x: x.strip(), line.split(':', 1))
         
         match field:
             case 'TYPE':
@@ -40,10 +38,7 @@ class Instance:
             case 'DIMENSION':
                 self.dimension = int(value)
                 
-                self.distances = np.zeros((self.dimension, self.dimension), dtype=int)
-                
-            case 'CAPACITY':
-                self.capacity = int(value)
+                self.distances = np.zeros((self.dimension, self.dimension))
                 
             case 'EDGE_WEIGHT_TYPE':
                 if value not in ('EUC_2D', 'ATT', 'EXPLICIT'):
@@ -52,49 +47,51 @@ class Instance:
                 self.edge_weight_type = value
                 
             case 'EDGE_WEIGHT_FORMAT':
-                if value != 'LOWER_COL' and value != 'LOWER_ROW':
-                    raise Exception('Only LOWER_COL and LOWER_ROW edge weight formats are supported')
+                if value not in ('LOWER_COL', 'LOWER_ROW'):
+                    raise Exception('Only (LOWER_COL, LOWER_ROW) edge weight formats are supported')
 
                 self.edge_weight_format = value
                 
-        match self.edge_weight_format:
-            case 'LOWER_ROW':
-                self.i, self.j = 0, 1 # Indexes
-            case 'LOWER_COL':
-                self.i, self.j = 1, 0 # Indexes
+                match self.edge_weight_format:
+                    case 'LOWER_ROW':
+                        self._i, self._j = 0, 1
+                    case 'LOWER_COL':
+                        self._i, self._j = 1, 0
+                
+            case 'CAPACITY':
+                self.capacity = int(value)
     
     def load_section(self, line: str):
         ''' Load a section from the line '''
             
         values = line.split()
                 
-        match self.section:            
+        match self._section:            
             case 'EDGE_WEIGHT_SECTION':
                 for value in values:
-                    self.distances[self.i, self.j] = self.distances[self.j, self.i] = int(value)
+                    self.distances[self._i, self._j] = self.distances[self._j, self._i] = float(value)
+                    
+                    self._i += 1
                     
                     match self.edge_weight_format:
-                        case 'LOWER_ROW':
-                           self.i += 1
-                           
-                           if self.i == self.j:
-                                self.i = 0
-                                self.j += 1
+                        case 'LOWER_ROW':      
+                           if self._i == self._j:
+                                self._i = 0
+                                self._j += 1
                             
                         case 'LOWER_COL':
-                            self.i += 1
-                            
-                            if self.i == self.dimension:
-                                self.j += 1 
-                                self.i = self.j + 1
+                            if self._i == self.dimension:
+                                self._j += 1 
+                                self._i = self._j + 1
                 
             case 'NODE_COORD_SECTION':
-                x, y = float(values[1]), float(values[2])
-                self.positions.append((x, y))
+                if '.' in line:
+                    self._round = False
+                
+                self.node_coords.append((float(values[1]), float(values[2])))
                 
             case 'DEMAND_SECTION':
-                demand = int(values[1])
-                self.demands.append(demand)
+                self.demands.append(int(values[1]))
 
             case 'DEPOT_SECTION':
                 depot = int(values[0])
@@ -107,27 +104,26 @@ class Instance:
         
     def load_distances(self):
         ''' Load the distances for the CVRP instance '''
-        
+          
         for i in range(self.dimension):
-            for j in range(self.dimension):
-                sdx = (self.positions[i][0] - self.positions[j][0]) ** 2
-                sdy = (self.positions[i][1] - self.positions[j][1]) ** 2
+            for j in range(i + 1, self.dimension):
+                sdx = (self.node_coords[i][0] - self.node_coords[j][0]) ** 2
+                sdy = (self.node_coords[i][1] - self.node_coords[j][1]) ** 2
                 
-                distance = 0
+                distance = np.sqrt(sdx + sdy)
                 
-                match self.edge_weight_type:
-                    case 'EUC_2D':
-                        distance: float = round(np.sqrt(sdx + sdy))
+                if self.edge_weight_type == 'ATT':
+                    distance /= 10
                     
-                    case 'ATT':
-                        distance: float = round(np.sqrt((sdx + sdy) / 10))
+                if self._round:
+                    distance = round(distance)
                 
                 self.distances[i, j] = self.distances[j, i] = distance
     
     def load(self):
         ''' Load an instance from the file '''
         
-        with open(self.instance_file, 'r') as file:
+        with open(self._instance_file, 'r') as file:
             for l in file.readlines():
                 line = l.strip()
                 
@@ -138,13 +134,12 @@ class Instance:
                     self.load_field(line)
                     
                 if line.isupper():
-                    self.section = line
+                    self._section = line
                     
-                    continue
-                
-                self.load_section(line)
+                else:    
+                    self.load_section(line)
             
-            if len(self.positions) != 0:
+            if len(self.node_coords):
                 self.load_distances()
             
         return self
