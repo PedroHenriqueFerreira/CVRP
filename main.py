@@ -3,39 +3,30 @@ from sys import argv
 from classes import Instance, ClarkeWright, TwoOpt, KNeighbors, Solver
 
 if __name__ == '__main__':
-    # if len(argv) < 5:
-    #     print('Usage: python main.py <instance> <vehicle_number> <neighbor_number> <solver_name>')
-    #     print('Example: python main.py instances/eil22.vrp 4 5 clasp')
-    #     exit(1)
+    if len(argv) < 5:
+        print('Usage: python main.py <instance> <vehicle_number> <neighbor_number> <solver_name>')
+        print('Example: python main.py instances/P/P-n16-k8.vrp 8 5 clasp')
+        exit(1)
         
     cvrp = Instance(argv[1]).load()
     
-    # , int(argv[3]), argv[4]
+    cw_time, routes = ClarkeWright.run(cvrp, int(argv[2]))
     
-    cw_time, routes = ClarkeWright(cvrp, int(argv[2])).run()
+    print('CW', cw_time, sum(route.cost for route in routes.values()), list(routes.values()))
     
-    print(cw_time, routes)
+    to_time, routes = TwoOpt.run(routes)
     
-    # to_time, routes = TwoOpt(routes).run()
+    print('TO', to_time, sum(route.cost for route in routes.values()), list(routes.values()))
+     
+    kn_time, matrices = KNeighbors.run(cvrp, int(argv[3]), routes)
     
-    # kn_time, matrices = KNeighbors(cvrp, routes).run()
+    print('KN', kn_time)
     
-    # print('-' * 80)
+    print('-' * 50)
     
-    # print('BEFORE SOLVER \n')
+    solver_time, solver_cost, solver_routes = Solver.run(cvrp, argv[4], matrices)
     
-    # print('ROUTES', [route.route for route in routes])
-    # print('DEMAND', [route.demand for route in routes])
-    # print('COST', sum([route.cost for route in routes]))
-    
-    # print('-' * 80)
-    
-    # print('AFTER SOLVER \n')
-    
-    # solver_time, solver_cost, solver_result = Solver(cvrp, matrices).run()
-    
-    # print('RESULT', solver_result)
-    # print('OPTIMUM', solver_cost)
+    print('SOLVER', solver_time, solver_cost, solver_routes)
     
     # print('-' * 80)
     

@@ -6,20 +6,23 @@ class ClarkeWright:
     ''' Class for the Clarke-Wright savings heuristic '''
     
     def __init__(self, cvrp: Instance, vehicle_number: int):
+        ''' Initialize class with the CVRP instance and the number of vehicles '''
+        
         self.cvrp = cvrp # CVRP instance
         self.vehicle_number = vehicle_number # Number of vehicles
         
-        self.savings: list[tuple[int, int, int]] = []
-        self.routes: list[Route] = []
+        self.savings: list[tuple[int, int, int]] = [] # Savings list
+        
+        self.routes: dict[int, Route] = {} # Routes dictionary
     
     def load_savings(self):
         ''' Load the savings for the CVRP instance '''
         
         for i in range(1, self.cvrp.dimension):
             for j in range(i + 1, self.cvrp.dimension):
-                s = self.cvrp.distances[i, 0] + self.cvrp.distances[j, 0] - self.cvrp.distances[i, j]
+                saving = self.cvrp.distances[0, i] + self.cvrp.distances[0, j] - self.cvrp.distances[i, j]
                 
-                self.savings.append((s, i, j))
+                self.savings.append((saving, i, j))
                 
         self.savings.sort(key=lambda x: x[0], reverse=True)
     
@@ -27,74 +30,92 @@ class ClarkeWright:
         ''' Load initial routes '''
         
         for customer in range(1, self.cvrp.dimension):
-            self.routes.append(Route(self.cvrp, [customer]))
+            self.routes[customer] = Route(self.cvrp, [customer])
 
     def combine_routes(self):
         ''' Combine the routes '''
         
-        for s, i, j in self.savings:
-            if s < 0:
+        for saving, i, j in self.savings:
+            if i not in self.routes or j not in self.routes:
                 continue
             
-            route_i = route_j = None
-            for k, route in enumerate(self.routes):
-                if i in route:
-                    route_i = k
-                if j in route:
-                    route_j = k
-            
-            if not route_i or not route_j or route_i == route_j:
+            if self.routes[i] == self.routes[j]:
                 continue
             
-            if self.routes[route_i][0] == i:
-                self.routes[route_i] = self.routes[route_i].reversed()
-                
-            if self.routes[route_j][-1] == j:
-                self.routes[route_j] = self.routes[route_j].reversed()
+            if self.routes[i][0] == i:
+                self.routes[i] = self.routes[i].reversed()
             
-            if self.routes[route_i][-1] != i or self.routes[route_j][0] != j:
+            if self.routes[j][-1] == j:
+                self.routes[j] = self.routes[j].reversed()
+                
+            if self.routes[i][-1] != i or self.routes[j][0] != j:
                 continue
-                
-            new_route = self.routes[route_i] + self.routes[route_j]
-                
-            if new_route.demand > self.cvrp.capacity:
+            
+            if self.routes[i].demand + self.routes[j].demand > self.cvrp.capacity:
                 continue
-                
-            self.routes[route_i] = new_route
-            self.routes.pop(route_j)
+            
+            self.routes[i] += self.routes[j]
+            del self.routes[j]
         
     def reduce_routes(self):
         ''' Reduce the number of routes '''
         
         while len(self.routes) > self.vehicle_number:
-            min_route = min(self.routes, key=len)
-            self.routes.remove(min_route)
+            route_removed = False
             
-            for customer in min_route:
-                customer_added = False
+            # Try to remove the route with the least number of customers
+            for remotion in sorted(self.routes, key=lambda i: len(self.routes[i])):
+                remotion_route = self.routes[remotion]
                 
-                for i, route in enumerate(self.routes):
-                    new_route = route + [customer]
+                del self.routes[remotion]
+            
+                remaining_customer = False
+                
+                # Try to add the customers of the removed route to the other routes
+                for customer in remotion_route:
+                    customer_added = False
                     
-                    if new_route.demand > self.cvrp.capacity:
-                        continue
+                    # Try to add the customer the least loaded route
+                    for addition in sorted(self.routes, key=lambda i: self.routes[i].demand):
+                        if self.routes[addition].demand + self.cvrp.demands[customer] > self.cvrp.capacity:
+                            continue
+                        
+                        self.routes[addition].append(customer)
+                        
+                        customer_added = True
+                        break
                     
-                    self.routes[i] = new_route
-                    customer_added = True
+                    if not customer_added:
+                        remaining_customer = True
+                        break
+                
+                # If could not add a customer to any route, restore the removed route
+                if remaining_customer:
+                    for customer in remotion_route:
+                        for route in self.routes:
+                            if customer in self.routes[route]:
+                                self.routes[route].remove(customer)
                     
+                    self.routes[remotion] = remotion_route
+                else:
+                    route_removed = True
                     break
-                
-                if not customer_added:
-                    raise Exception('Cannot add the customer to any route')
+            
+            # If could not remove any route, stop the process
+            if not route_removed:
+                raise Exception('Cannot remove the route')
                 
     @timer
-    def run(self):
+    @staticmethod
+    def run(cvrp: Instance, vehicle_number: int) -> tuple[float, dict[int, Route]]:
         ''' Run the Clarke-Wright savings heuristic '''
         
-        self.load_savings()
-        self.load_routes()
+        cw = ClarkeWright(cvrp, vehicle_number)
         
-        self.combine_routes()
-        self.reduce_routes()
+        cw.load_savings()
+        cw.load_routes()
         
-        return self.routes
+        cw.combine_routes()
+        cw.reduce_routes()
+        
+        return cw.routes

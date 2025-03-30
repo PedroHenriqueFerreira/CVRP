@@ -9,12 +9,13 @@ from classes.utils import timer
 class KNeighbors:
     ''' Class for the k-nearest neighbors heuristic '''
     
-    def __init__(self, cvrp: Instance, routes: list[Route]):
+    def __init__(self, cvrp: Instance, neighbor_number: int, routes: dict[int, Route]):  
         self.cvrp = cvrp # CVRP instance
         self.routes = routes # Routes list
+        self.neighbor_number = neighbor_number # Number of neighbors
         
         self.mst: Graph = None # Minimum spanning tree
-        self.matrices: list[np.ndarray] = []
+        self.matrices: dict[int, np.ndarray] = {} # Distance matrices
         
     def load_mst(self):
         ''' Load the minimum spanning tree '''  
@@ -26,15 +27,15 @@ class KNeighbors:
     
         self.mst = minimum_spanning_tree(graph)
         
-    def nearest_neighbors_mst(self, customer: int):
+    def nearest_neighbors_mst(self, customer: int) -> list[int]:
         ''' Get the nearest neighbors from the minimum spanning tree '''
     
         neighbors = list(self.mst.neighbors(customer))
-        weights = [self.mst.get_edge_data(customer, c)['weight'] for c in neighbors]
+        weights = [self.mst.get_edge_data(customer, neighbor)['weight'] for neighbor in neighbors]
         
-        sorted_neighbors = [c for _, c in sorted(zip(weights, neighbors))]
+        sorted_neighbors = [neighbor for _, neighbor in sorted(zip(weights, neighbors))]
         
-        return sorted_neighbors[:self.cvrp.neighbor_number]
+        return sorted_neighbors[:self.neighbor_number]
         
     def nearest_neighbors_mat(self, customer: int):
         ''' Get the nearest neighbors from the distance matrix '''
@@ -42,24 +43,24 @@ class KNeighbors:
         neighbors = list(range(self.cvrp.dimension))
         weights = list(self.cvrp.distances[customer])
         
-        sorted_neighbors = [c for _, c in sorted(zip(weights, neighbors)) if c != customer]
+        sorted_neighbors = [neighbor for _, neighbor in sorted(zip(weights, neighbors)) if neighbor != customer]
         
-        return sorted_neighbors[:self.cvrp.neighbor_number]
+        return sorted_neighbors[:self.neighbor_number]
         
     def nearest_neighbors(self, customer: int):
         ''' Get the nearest neighbors '''
         
         neighbors = self.nearest_neighbors_mst(customer)
         
-        if len(neighbors) < self.cvrp.neighbor_number:
+        if len(neighbors) < self.neighbor_number:
             for neighbor in self.nearest_neighbors_mat(customer):
                 if neighbor not in neighbors:
                     neighbors.append(neighbor)
                     
-                if len(neighbors) == self.cvrp.neighbor_number:
+                if len(neighbors) == self.neighbor_number:
                     break
         
-        if len(neighbors) < self.cvrp.neighbor_number:
+        if len(neighbors) < self.neighbor_number:
             raise Exception('Cannot find all neighbors')
         
         return neighbors
@@ -67,30 +68,35 @@ class KNeighbors:
     def load_matrices(self):
         ''' Load distance matrices based on nearest neighbors '''
         
-        for route in self.routes:
+        for idx in self.routes:
+            route = self.routes[idx]
+            
             matrix = np.full((self.cvrp.dimension, self.cvrp.dimension), -1, dtype=int)
             
             for i in range(self.cvrp.dimension):
                 matrix[i, i] = 0
             
-            matrix[0, route[0]] = matrix[route[0], 0] = self.cvrp.distances[0, route[0]]    
-            for r in range(len(route) - 1):
-                matrix[route[r], route[r + 1]] = self.cvrp.distances[route[r], route[r + 1]]
-                matrix[route[r + 1], route[r]] = self.cvrp.distances[route[r + 1], route[r]]
-            matrix[route[-1], 0] = matrix[0, route[-1]] = self.cvrp.distances[route[-1], 0]
+            matrix[0, route[0]] = matrix[route[0], 0] = self.cvrp.distances[0, route[0]]  
+            for i in range(len(route) - 1):
+                distance = self.cvrp.distances[route[i], route[i + 1]]
+                matrix[route[i], route[i + 1]] = matrix[route[i + 1], route[i]] = distance
+            matrix[0, route[-1]] = matrix[route[-1], 0] = self.cvrp.distances[0, route[-1]]
                 
             for customer in route:
                 for neighbor in self.nearest_neighbors(customer):
-                    matrix[customer, neighbor] = self.cvrp.distances[customer, neighbor]
-                    matrix[neighbor, customer] = self.cvrp.distances[neighbor, customer]
+                    distance = self.cvrp.distances[customer, neighbor]
+                    matrix[customer, neighbor] = matrix[neighbor, customer] = distance
             
-            self.matrices.append(matrix)
+            self.matrices[idx] = matrix
     
     @timer
-    def run(self):
+    @staticmethod
+    def run(cvrp: Instance, neighbor_number: int, routes: dict[int, Route]) -> tuple[float, list[np.ndarray]]:
         ''' Run the k-nearest neighbors heuristic '''
         
-        self.load_mst()
-        self.load_matrices()
+        kn = KNeighbors(cvrp, neighbor_number, routes)
         
-        return self.matrices
+        kn.load_mst()
+        kn.load_matrices()
+        
+        return list(kn.matrices.values())

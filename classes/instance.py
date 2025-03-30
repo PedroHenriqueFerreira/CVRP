@@ -14,13 +14,9 @@ class Instance:
         self.node_coords: list[tuple[float, float]] = [] # Nodes coordinates
         self.demands: list[int] = [] # Demands list
         
-        self.depot: int = -1 # Depot node
-        
         self.distances: np.ndarray = None # Distance matrix
         
         # Auxiliary variables
-        
-        self._round = True # Round distances
         
         self._section = '' # Section name
         self._i, self._j = 0, 0 # Matrix indexes
@@ -38,7 +34,7 @@ class Instance:
             case 'DIMENSION':
                 self.dimension = int(value)
                 
-                self.distances = np.zeros((self.dimension, self.dimension))
+                self.distances = np.zeros((self.dimension, self.dimension), dtype=int)
                 
             case 'EDGE_WEIGHT_TYPE':
                 if value not in ('EUC_2D', 'ATT', 'EXPLICIT'):
@@ -69,7 +65,7 @@ class Instance:
         match self._section:            
             case 'EDGE_WEIGHT_SECTION':
                 for value in values:
-                    self.distances[self._i, self._j] = self.distances[self._j, self._i] = float(value)
+                    self.distances[self._i, self._j] = self.distances[self._j, self._i] = round(value)
                     
                     self._i += 1
                     
@@ -85,9 +81,6 @@ class Instance:
                                 self._i = self._j + 1
                 
             case 'NODE_COORD_SECTION':
-                if '.' in line:
-                    self._round = False
-                
                 self.node_coords.append((float(values[1]), float(values[2])))
                 
             case 'DEMAND_SECTION':
@@ -96,11 +89,8 @@ class Instance:
             case 'DEPOT_SECTION':
                 depot = int(values[0])
                 
-                if depot > 0:
-                    if self.depot > 0:
-                        raise Exception('Only one depot is supported')
-                    
-                    self.depot = depot
+                if depot > 0 and depot != 1:
+                    raise Exception('Depot must be the first node')
         
     def load_distances(self):
         ''' Load the distances for the CVRP instance '''
@@ -115,10 +105,7 @@ class Instance:
                 if self.edge_weight_type == 'ATT':
                     distance /= 10
                     
-                if self._round:
-                    distance = round(distance)
-                
-                self.distances[i, j] = self.distances[j, i] = distance
+                self.distances[i, j] = self.distances[j, i] = round(distance)
     
     def load(self):
         ''' Load an instance from the file '''
