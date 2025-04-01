@@ -1,5 +1,5 @@
 from classes.route import Route
-from classes.utils import timer
+from classes.utils import Utils
 
 class TwoOpt:
     ''' Class for the 2-opt heuristic '''
@@ -32,7 +32,7 @@ class TwoOpt:
             
             self.routes[idx] = route
 
-    @timer
+    @Utils.timer
     @staticmethod
     def run(routes: dict[int, Route]) -> tuple[float, dict[int, Route]]:
         ''' Run the 2-opt heuristic '''

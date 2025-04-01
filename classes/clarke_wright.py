@@ -1,6 +1,6 @@
 from classes.instance import Instance
 from classes.route import Route
-from classes.utils import timer
+from classes.utils import Utils
 
 class ClarkeWright:
     ''' Class for the Clarke-Wright savings heuristic '''
@@ -103,9 +103,9 @@ class ClarkeWright:
             
             # If could not remove any route, stop the process
             if not route_removed:
-                raise Exception('Cannot remove the route')
+                raise Exception('Cannot reduce the number of routes')
                 
-    @timer
+    @Utils.timer
     @staticmethod
     def run(cvrp: Instance, vehicle_number: int) -> tuple[float, dict[int, Route]]:
         ''' Run the Clarke-Wright savings heuristic '''

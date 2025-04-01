@@ -4,7 +4,7 @@ from networkx import Graph, minimum_spanning_tree
 
 from classes.instance import Instance
 from classes.route import Route
-from classes.utils import timer
+from classes.utils import Utils
 
 class KNeighbors:
     ''' Class for the k-nearest neighbors heuristic '''
@@ -89,7 +89,7 @@ class KNeighbors:
             
             self.matrices[idx] = matrix
     
-    @timer
+    @Utils.timer
     @staticmethod
     def run(cvrp: Instance, neighbor_number: int, routes: dict[int, Route]) -> tuple[float, list[np.ndarray]]:
         ''' Run the k-nearest neighbors heuristic '''

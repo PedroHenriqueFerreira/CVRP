@@ -65,7 +65,7 @@ class Instance:
         match self._section:            
             case 'EDGE_WEIGHT_SECTION':
                 for value in values:
-                    self.distances[self._i, self._j] = self.distances[self._j, self._i] = round(value)
+                    self.distances[self._i, self._j] = self.distances[self._j, self._i] = round(float(value))
                     
                     self._i += 1
                     

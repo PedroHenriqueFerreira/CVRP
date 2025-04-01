@@ -1,8 +1,0 @@
-Solvers Incompletos 
-Any Time Sat Solver
-
-https://github.com/RJPenic/CVRPTW/tree/main
-
-https://github.com/arora-amit37/cvrptw_clarke_wright/blob/main
-
-https://github.com/yorak/VeRyPy/tree/master/verypy/classic_heuristics
