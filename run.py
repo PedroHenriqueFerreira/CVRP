@@ -4,8 +4,8 @@ from classes import Instance, ClarkeWright, TwoOpt, KNeighbors, Solver
 
 if __name__ == '__main__':
     if len(argv) < 4:
-        print('Usage: python main.py <instance> <vehicle_number> <neighbor_number>')
-        print('Example: python main.py instances/P/P-n16-k8.vrp 8 5')
+        print('Usage: python run.py <instance> <vehicle_number> <neighbor_number>')
+        print('Example: python run.py instances/A-n33-k6.vrp 6 5')
         exit(1)
         
     cvrp = Instance(argv[1]).load()
