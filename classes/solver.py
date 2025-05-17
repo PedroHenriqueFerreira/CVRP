@@ -10,9 +10,10 @@ from classes.utils import Utils
 class Solver:
     ''' Class for the solver '''
     
-    def __init__(self, cvrp: Instance, matrices: list[np.ndarray]):
+    def __init__(self, cvrp: Instance, matrices: list[np.ndarray], use_lima: bool = False):
         self.cvrp = cvrp # CVRP instance
         self.matrices = matrices # Matrices list
+        self.use_lima = use_lima # Use Lima approach
         
         self.counter = 1
         
@@ -123,7 +124,7 @@ class Solver:
         try:
             with open('input.txt', 'w+') as input_file:
                 input_file.write(self.encode())
-                
+            
             system(f'./clasp input.txt > output.txt --time-limit=80')
             
             with open('output.txt', 'r') as output_file:
@@ -140,7 +141,11 @@ class Solver:
         
         bytes_size = ceil(log2(self.cvrp.dimension - 1))
         
-        u: list[int] = []    
+        if self.use_lima:
+            c: list[int] = []
+        else:
+            u: list[int] = []    
+        
         t: list[int] = []
         w: list[int] = []
     
@@ -148,12 +153,16 @@ class Solver:
         for v in range(len(self.matrices)):   
             for i in range(self.cvrp.dimension):
                 if i != 0:
-                    for b in range(bytes_size):
-                        u.append(self.get(f'u_{i}_{b}_{v}'))
+                    if not self.use_lima:
+                        for b in range(bytes_size):
+                            u.append(self.get(f'u_{i}_{b}_{v}'))
                 
                 t.append(self.get(f't_{i}_{v}'))
                 
                 for j in range(self.cvrp.dimension):
+                    if self.use_lima:
+                        c.append(self.get(f'c_{i}_{j}_{v}'))
+                    
                     if i != j:
                         w.append(self.get(f'w_{i}_{j}_{v}'))
         
@@ -232,27 +241,53 @@ class Solver:
                 self.add_constraint_geq(None, [-w_0_ij_v, t_ij_v], 1)
                 self.add_constraint_geq(None, [-w_ij_0_v, t_ij_v], 1)
         
-        # Subtour Elimination (MTZ)
-        exp: list[int] = [2 ** b for b in range(bytes_size)]
-        neg_exp = [-item for item in exp]
-        
-        u_factors = neg_exp + exp + [-self.cvrp.dimension + 1]
-        u_value = -self.cvrp.dimension + 2
-        
-        for v in range(len(self.matrices)):
+        # Subtour Elimination (Lima)
+        if self.use_lima:
+            # BASE WAY
+            for i in range(self.cvrp.dimension):
+                for j in range(self.cvrp.dimension):
+                    if i != j:
+                        for v in range(len(self.matrices)):
+                            w_i_j_v = self.get(f"w_{i}_{j}_{v}")
+                            c_i_j_v = self.get(f"c_{i}_{j}_{v}")
+                            self.add_constraint_geq(None, [-w_i_j_v, c_i_j_v], 1)
+            #INDUCTION PATH 
             for i in range(1, self.cvrp.dimension):
                 for j in range(1, self.cvrp.dimension):
-                    if i == j:
-                        continue
-                        
-                    u_i_v = [self.get(f'u_{i}_{b}_{v}') for b in range(bytes_size)]
-                    u_j_v = [self.get(f'u_{j}_{b}_{v}') for b in range(bytes_size)]
-                    
-                    w_i_j_v = self.get(f'w_{i}_{j}_{v}')
-                    
-                    u_clause = u_i_v + u_j_v + [w_i_j_v]
+                    for k in range(1, self.cvrp.dimension):
+                        if i != j:
+                            for v in range(len(self.matrices)):
+                                w_i_j_v = self.get(f"w_{i}_{j}_{v}")
+                                c_j_k_v = self.get(f"c_{j}_{k}_{v}")
+                                c_i_k_v = self.get(f"c_{i}_{k}_{v}")
+                                self.add_constraint_geq(None, [-w_i_j_v, -c_j_k_v, c_i_k_v], 1)
 
-                    self.add_constraint_geq(u_factors, u_clause, u_value)
+            for i in range(self.cvrp.dimension):
+                if i != 0:
+                    c_i_i_v = [self.get(f"c_{i}_{i}_{v}") for v in range(len(self.matrices))]
+                    self.add_constraint_eq(None, c_i_i_v, 0)
+        else: 
+            # Subtour Elimination (MTZ)
+            exp: list[int] = [2 ** b for b in range(bytes_size)]
+            neg_exp = [-item for item in exp]
+            
+            u_factors = neg_exp + exp + [-self.cvrp.dimension + 1]
+            u_value = -self.cvrp.dimension + 2
+            
+            for v in range(len(self.matrices)):
+                for i in range(1, self.cvrp.dimension):
+                    for j in range(1, self.cvrp.dimension):
+                        if i == j:
+                            continue
+                            
+                        u_i_v = [self.get(f'u_{i}_{b}_{v}') for b in range(bytes_size)]
+                        u_j_v = [self.get(f'u_{j}_{b}_{v}') for b in range(bytes_size)]
+                        
+                        w_i_j_v = self.get(f'w_{i}_{j}_{v}')
+                        
+                        u_clause = u_i_v + u_j_v + [w_i_j_v]
+
+                        self.add_constraint_geq(u_factors, u_clause, u_value)
         
         # A vehicle cannot exceed its capacity
         neg_demands = [-demand for demand in self.cvrp.demands]
@@ -287,10 +322,10 @@ class Solver:
         
     @Utils.timer
     @staticmethod
-    def run(cvrp: Instance, matrices: list[np.ndarray]) -> tuple[float, float, list[str]]:
+    def run(cvrp: Instance, matrices: list[np.ndarray], use_lima: bool = False) -> tuple[float, float, list[str]]:
         ''' Run the solver '''
         
-        solver = Solver(cvrp, matrices)
+        solver = Solver(cvrp, matrices, use_lima)
         
         solver.load_model()
         solver.solve()

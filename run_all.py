@@ -27,9 +27,10 @@ if __name__ == '__main__':
                 
                 _, matrices = KNeighbors.run(cvrp, neighbor_number, routes)
                 
-                solver_time, solver_cost, solver_routes = Solver.run(cvrp, matrices)
-                
-                print(f'Solver cost: {solver_cost} ({solver_time:.3f}s)')
+                for _ in range(5):
+                    solver_time, solver_cost, solver_routes = Solver.run(cvrp, matrices)
+                    
+                    print(f'Solver cost: {solver_cost} ({solver_time:.3f}s)')
                 
             print(' % '.center(80, '-'))
             print(f'Improvement: {(cw_2opt_cost - solver_cost) / cw_2opt_cost * 100:.2f}%')           
